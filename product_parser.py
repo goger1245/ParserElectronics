@@ -169,6 +169,13 @@ async def _search_shop(
         return ShopResult(shop=shop.name, error=f"Ошибка: {exc}")
     finally:
         if browser is not None:
+            if not browser_config.headless and browser_config.browser_hold_ms > 0:
+                logger.info(
+                    "[%s] Оставляю Firefox открытым на %.1f сек.",
+                    shop.name,
+                    browser_config.browser_hold_ms / 1000,
+                )
+                await asyncio.sleep(browser_config.browser_hold_ms / 1000)
             await browser.close()
 
 

@@ -11,6 +11,7 @@ class FirefoxBrowserConfig:
     headless: bool = False
     slow_mo: int = 50
     timeout: int = 60_000
+    browser_hold_ms: int = 15_000
     viewport_width: int = 1366
     viewport_height: int = 768
     locale: str = "ru-RU"
