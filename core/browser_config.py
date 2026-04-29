@@ -1,15 +1,13 @@
 from dataclasses import dataclass
 from typing import Any
 
-from camoufox.async_api import AsyncCamoufox  # pyright: ignore[reportMissingImports]
+from camoufox.async_api import AsyncCamoufox  
 
 from core.proxy_menager import ProxyConfig, ProxyManager
 
 
 @dataclass(frozen=True)
 class CamoufoxBrowserConfig:
-    """Camoufox launch and context settings."""
-
     headless: bool = True
     humanize: bool | float = 1.5
     timeout: int = 60_000

@@ -13,7 +13,6 @@ CAMOUFOX_SKIP_FETCH_ENV = "PARSER_SKIP_CAMOUFOX_FETCH"
 
 
 def ensure_camoufox_browser() -> None:
-    """Fetches the active Camoufox browser if the local install is missing."""
     if os.getenv(CAMOUFOX_SKIP_FETCH_ENV, "").strip().lower() in {"1", "true", "yes"}:
         return
 

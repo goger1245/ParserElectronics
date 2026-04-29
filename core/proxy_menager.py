@@ -38,8 +38,6 @@ class ProxyConfig:
 
 
 class ProxyManager:
-    """Converts proxy strings to Playwright proxy settings."""
-
     @staticmethod
     def parse_proxy(proxy_str: str, default_scheme: str = "socks5") -> ProxyConfig:
         value = proxy_str.strip()
