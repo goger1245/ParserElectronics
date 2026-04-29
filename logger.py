@@ -9,6 +9,9 @@ DATE_FORMAT = "%H:%M:%S"
 
 
 def setup_logging(level: int = logging.INFO) -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     root_logger = logging.getLogger()
     if root_logger.handlers:
         root_logger.setLevel(level)

@@ -6,7 +6,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from browser_config import FirefoxBrowserConfig
+from browser_config import CamoufoxBrowserConfig
 from logger import get_logger
 from product_parser import SearchSummary, search_all_shops
 
@@ -18,13 +18,14 @@ class ParserGui(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Parser Electronics")
-        self.geometry("1080x720")
-        self.minsize(900, 620)
+        self.geometry("1180x720")
+        self.minsize(960, 620)
         self.configure(bg="#101827")
 
         self._is_loading = False
         self._animation_step = 0
         self._row_urls: dict[str, str] = {}
+        self._best_url: str | None = None
 
         self._setup_styles()
         self._build_layout()
@@ -60,10 +61,16 @@ class ParserGui(tk.Tk):
             font=("Segoe UI", 11),
         )
         style.configure(
+            "Link.TLabel",
+            background="#172033",
+            foreground="#38bdf8",
+            font=("Segoe UI", 10, "underline"),
+        )
+        style.configure(
             "Best.TLabel",
             background="#172033",
             foreground="#5eead4",
-            font=("Segoe UI", 16, "bold"),
+            font=("Segoe UI", 14, "bold"),
         )
         style.configure(
             "Search.TButton",
@@ -116,7 +123,7 @@ class ParserGui(tk.Tk):
         ttk.Label(root, text="Parser Electronics", style="Title.TLabel").pack(anchor=tk.W)
         ttk.Label(
             root,
-            text="Параллельный поиск техники в DNS, Citilink и OnlineTrade через Firefox Playwright.",
+            text="Параллельный поиск техники в DNS, Citilink и М.Видео через Camoufox.",
             style="Muted.TLabel",
         ).pack(anchor=tk.W, pady=(6, 24))
 
@@ -125,9 +132,12 @@ class ParserGui(tk.Tk):
 
         fields = ttk.Frame(search_card, style="Card.TFrame")
         fields.pack(fill=tk.X)
+        fields.columnconfigure(0, weight=1, uniform="search_fields")
+        fields.columnconfigure(1, weight=1, uniform="search_fields")
+        fields.columnconfigure(2, weight=0)
 
         query_box = ttk.Frame(fields, style="Card.TFrame")
-        query_box.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 12))
+        query_box.grid(row=0, column=0, sticky=tk.EW, padx=(0, 12))
         ttk.Label(query_box, text="Что ищем", style="Card.TLabel").pack(anchor=tk.W)
         self.query_entry = tk.Entry(
             query_box,
@@ -144,7 +154,7 @@ class ParserGui(tk.Tk):
         self.query_entry.bind("<Return>", lambda _event: self.start_search())
 
         proxy_box = ttk.Frame(fields, style="Card.TFrame")
-        proxy_box.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 12))
+        proxy_box.grid(row=0, column=1, sticky=tk.EW, padx=(0, 12))
         ttk.Label(proxy_box, text="Прокси, если нужен", style="Card.TLabel").pack(anchor=tk.W)
         self.proxy_entry = tk.Entry(
             proxy_box,
@@ -163,9 +173,10 @@ class ParserGui(tk.Tk):
             fields,
             text="Найти дешевле",
             style="Search.TButton",
+            width=16,
             command=self.start_search,
         )
-        self.search_button.pack(side=tk.RIGHT, pady=(28, 0))
+        self.search_button.grid(row=0, column=2, sticky=tk.E, pady=(28, 0))
 
         loader = ttk.Frame(search_card, style="Card.TFrame")
         loader.pack(fill=tk.X, pady=(18, 0))
@@ -173,6 +184,7 @@ class ParserGui(tk.Tk):
             loader,
             text="Готов к поиску",
             style="Card.TLabel",
+            width=28,
         )
         self.loading_label.pack(side=tk.LEFT)
         self.progress = ttk.Progressbar(
@@ -189,30 +201,61 @@ class ParserGui(tk.Tk):
             result_card,
             text="Лучший результат появится здесь",
             style="Best.TLabel",
+            justify=tk.LEFT,
+            wraplength=920,
         )
         self.best_label.pack(anchor=tk.W, pady=(0, 16))
-
-        columns = ("shop", "title", "price", "status")
-        self.result_table = ttk.Treeview(
+        result_card.bind(
+            "<Configure>",
+            lambda event: self.best_label.configure(
+                wraplength=max(420, event.width - 44),
+            ),
+        )
+        self.best_url_label = ttk.Label(
             result_card,
+            text="",
+            style="Link.TLabel",
+            cursor="hand2",
+            wraplength=920,
+        )
+        self.best_url_label.pack(anchor=tk.W, pady=(0, 16))
+        self.best_url_label.bind("<Button-1>", self._open_best_url)
+        result_card.bind(
+            "<Configure>",
+            lambda event: self.best_url_label.configure(
+                wraplength=max(420, event.width - 44),
+            ),
+            add="+",
+        )
+
+        columns = ("shop", "title", "price", "status", "url")
+        table_frame = ttk.Frame(result_card, style="Card.TFrame")
+        table_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.result_table = ttk.Treeview(
+            table_frame,
             columns=columns,
             show="headings",
             selectmode="browse",
         )
+
         self.result_table.heading("shop", text="Магазин")
         self.result_table.heading("title", text="Товар")
         self.result_table.heading("price", text="Цена")
         self.result_table.heading("status", text="Статус")
-        self.result_table.column("shop", width=120, anchor=tk.W)
-        self.result_table.column("title", width=560, anchor=tk.W)
-        self.result_table.column("price", width=130, anchor=tk.E)
-        self.result_table.column("status", width=220, anchor=tk.W)
-        self.result_table.pack(fill=tk.BOTH, expand=True)
+        self.result_table.heading("url", text="Ссылка")
+        self.result_table.column("shop", width=105, minwidth=90, anchor=tk.W, stretch=False)
+        self.result_table.column("title", width=430, minwidth=260, anchor=tk.W, stretch=True)
+        self.result_table.column("price", width=110, minwidth=95, anchor=tk.CENTER, stretch=False)
+        self.result_table.column("status", width=130, minwidth=110, anchor=tk.W, stretch=False)
+        self.result_table.column("url", width=250, minwidth=170, anchor=tk.W, stretch=False)
+        self.result_table.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.result_table.bind("<Button-1>", self._open_clicked_url)
         self.result_table.bind("<Double-1>", self._open_selected_url)
 
         ttk.Label(
             result_card,
-            text="Двойной клик по строке откроет найденный товар в браузере.",
+            text="Клик по ссылке или двойной клик по строке откроет товар в браузере.",
             style="Card.TLabel",
         ).pack(anchor=tk.W, pady=(14, 0))
 
@@ -238,7 +281,7 @@ class ParserGui(tk.Tk):
 
     def _run_search_worker(self, query: str, proxy: str | None) -> None:
         try:
-            browser_config = FirefoxBrowserConfig(proxy=proxy)
+            browser_config = CamoufoxBrowserConfig(proxy=proxy)
             summary = asyncio.run(search_all_shops(query, browser_config))
             self.after(0, self._show_results, summary)
         except Exception as exc:
@@ -253,7 +296,13 @@ class ParserGui(tk.Tk):
                 self.result_table.insert(
                     "",
                     tk.END,
-                    values=(result.shop, "-", "-", result.error or "Не найдено"),
+                    values=(
+                        result.shop,
+                        "-",
+                        "-",
+                        "нету",
+                        "-",
+                    ),
                 )
                 continue
 
@@ -262,9 +311,10 @@ class ParserGui(tk.Tk):
                 tk.END,
                 values=(
                     result.shop,
-                    result.offer.title,
+                    self._shorten_text(result.offer.title, 78),
                     result.offer.formatted_price,
                     "Найдено",
+                    self._shorten_url(result.offer.url),
                 ),
             )
             self._row_urls[row_id] = result.offer.url
@@ -272,11 +322,18 @@ class ParserGui(tk.Tk):
         best = summary.best_offer
         if best is None:
             self.best_label.configure(text="Не удалось найти товары с ценой")
+            self.best_url_label.configure(text="")
+            self._best_url = None
             return
 
+        self._best_url = best.url
         self.best_label.configure(
-            text=f"Самый дешёвый: {best.shop} • {best.formatted_price} • {best.title}"
+            text=(
+                f"Самый дешёвый: {best.shop} • {best.formatted_price}\n"
+                f"{best.title}"
+            )
         )
+        self.best_url_label.configure(text=best.url)
 
     def _show_error(self, error: str) -> None:
         self._set_loading(False)
@@ -303,7 +360,7 @@ class ParserGui(tk.Tk):
             return
 
         frames = (
-            "Открываю 3 Firefox окна",
+            "Открываю Camoufox",
             "Ввожу поисковые запросы",
             "Собираю HTML и цены",
             "Сравниваю предложения",
@@ -316,9 +373,24 @@ class ParserGui(tk.Tk):
 
     def _clear_results(self) -> None:
         self._row_urls.clear()
+        self._best_url = None
         for row in self.result_table.get_children():
             self.result_table.delete(row)
         self.best_label.configure(text="Ищу лучший вариант...")
+        self.best_url_label.configure(text="")
+
+    def _open_best_url(self, _event: tk.Event) -> None:
+        if self._best_url:
+            webbrowser.open(self._best_url)
+
+    def _open_clicked_url(self, event: tk.Event) -> None:
+        if self.result_table.identify_column(event.x) != "#5":
+            return
+
+        row_id = self.result_table.identify_row(event.y)
+        url = self._row_urls.get(row_id)
+        if url:
+            webbrowser.open(url)
 
     def _open_selected_url(self, _event: tk.Event) -> None:
         selected = self.result_table.selection()
@@ -328,6 +400,19 @@ class ParserGui(tk.Tk):
         url = self._row_urls.get(selected[0])
         if url:
             webbrowser.open(url)
+
+    @staticmethod
+    def _shorten_text(text: str, max_length: int) -> str:
+        text = " ".join(text.split())
+        if len(text) <= max_length:
+            return text
+        return text[: max_length - 1].rstrip() + "…"
+
+    @staticmethod
+    def _shorten_url(url: str, max_length: int = 44) -> str:
+        if len(url) <= max_length:
+            return url
+        return url[: max_length - 1].rstrip("/") + "…"
 
 
 def run_gui() -> None:
